@@ -1,0 +1,3 @@
+/home/ammonia/Desktop/learning-vulkan/build/CMakeFiles/Tutorial.dir
+/home/ammonia/Desktop/learning-vulkan/build/CMakeFiles/edit_cache.dir
+/home/ammonia/Desktop/learning-vulkan/build/CMakeFiles/rebuild_cache.dir
