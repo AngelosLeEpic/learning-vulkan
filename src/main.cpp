@@ -29,6 +29,18 @@ constexpr bool enableValidationLayers = false;
 constexpr bool enableValidationLayers = true;
 #endif
 
+std::vector<const char*> getRequiredExtensions() {
+    uint32_t glfwExtensionCount = 0;
+    auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+    std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+    if (enableValidationLayers) {
+        extensions.push_back(vk::EXTDebugUtilsExtensionName );
+    }
+
+    return extensions;
+}
+
 class HelloTriangleApplication
 {
   public:
@@ -116,19 +128,19 @@ class HelloTriangleApplication
 				throw std::runtime_error("Required GLFW extension not supported: " + std::string(glfwExtensions[i]));
 			}
 		}
-
+		/*
 		vk::InstanceCreateInfo createInfo{
 			.pApplicationInfo = &appInfo,
 			.enabledExtensionCount = glfwExtensionCount,
 			.ppEnabledExtensionNames = glfwExtensions};
-		/*
+		*/
 		vk::InstanceCreateInfo createInfo{
 			.pApplicationInfo        = &appInfo,
 			.enabledLayerCount       = static_cast<uint32_t>(requiredLayers.size()),
 			.ppEnabledLayerNames     = requiredLayers.data(),
 			.enabledExtensionCount   = 0,
 			.ppEnabledExtensionNames = nullptr };
-		*/
+		
 		instance = vk::raii::Instance(context, createInfo);
 		printf("extensions: %i\n", glfwExtensionCount);
 	}
