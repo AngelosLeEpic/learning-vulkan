@@ -35,11 +35,23 @@ std::vector<const char*> getRequiredExtensions() {
 
     std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
     if (enableValidationLayers) {
+
         extensions.push_back(vk::EXTDebugUtilsExtensionName );
     }
 
     return extensions;
 }
+
+// names of extensions and features the GPU will need to have as a requirment for my engine
+std::vector<const char*> deviceExtensions = {
+	vk::KHRSwapchainExtensionName,
+	vk::KHRSpirv14ExtensionName,
+	vk::KHRSynchronization2ExtensionName,
+	vk::KHRCreateRenderpass2ExtensionName
+};
+
+// GPU pointer
+vk::raii::PhysicalDevice physicalDevice = nullptr;
 
 class HelloTriangleApplication
 {
@@ -81,7 +93,42 @@ class HelloTriangleApplication
 	void initVulkan()
 	{
 		createInstance();
+		//setupDebugMessenger(); TODO?
+		pickPhysicalDevice();	// find and select a GPU to use
 	}
+	void pickPhysicalDevice()
+	{
+		std::vector<vk::raii::PhysicalDevice> devices = instance.enumeratePhysicalDevices(); // make a list of all GPUs
+		// the bellow long and complicated code is just filtering the list for a GPU that satisfies our version and features needed
+		const auto devIter = std::ranges::find_if(devices,
+		[&](auto const & device) {
+				auto queueFamilies = device.getQueueFamilyProperties();
+				bool isSuitable = device.getProperties().apiVersion >= VK_API_VERSION_1_3;
+				const auto qfpIter = std::ranges::find_if(queueFamilies,
+				[]( vk::QueueFamilyProperties const & qfp )
+						{
+							return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0);
+						} );
+				isSuitable = isSuitable && ( qfpIter != queueFamilies.end() );
+				auto extensions = device.enumerateDeviceExtensionProperties( );
+				bool found = true;
+				for (auto const & extension : deviceExtensions) {
+					auto extensionIter = std::ranges::find_if(extensions, [extension](auto const & ext) {return strcmp(ext.extensionName, extension) == 0;});
+					found = found &&  extensionIter != extensions.end();
+				}
+				isSuitable = isSuitable && found;
+				if (isSuitable) {
+					printf("found suitable GPU!\n");
+					physicalDevice = device;
+				}
+				return isSuitable;
+		});
+		// we could not find a suitable GPU
+		if (devIter == devices.end()) {
+			throw std::runtime_error("failed to find a suitable GPU!");
+		}
+	}
+
 	void createInstance()
 	{
 		constexpr vk::ApplicationInfo appInfo{ .pApplicationName   = "Hello Triangle",
@@ -93,6 +140,7 @@ class HelloTriangleApplication
 		// Get the required layers
 		std::vector<char const*> requiredLayers;
 		if (enableValidationLayers) {
+			printf("DEBUG ON!\n");
 			requiredLayers.assign(validationLayers.begin(), validationLayers.end());
 		}
 		// Check if the required layers are supported by the Vulkan implementation.
