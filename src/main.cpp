@@ -15,7 +15,8 @@ import vulkan_hpp;
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
-
+#include <optional>
+#include <memory>
 const uint32_t WIDTH  = 800;
 const uint32_t HEIGHT = 600;
 
@@ -28,6 +29,19 @@ constexpr bool enableValidationLayers = false;
 #else
 constexpr bool enableValidationLayers = true;
 #endif
+// HELPER FUNCTIONS
+uint32_t findQueueFamilies(vk::raii::PhysicalDevice physicalDevice) {
+	// find the index of the first queue family that supports graphics
+	std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+
+	// get the first index into queueFamilyProperties which supports graphics
+	auto graphicsQueueFamilyProperty =
+	  std::find_if( queueFamilyProperties.begin(),
+					queueFamilyProperties.end(),
+					[]( vk::QueueFamilyProperties const & qfp ) { return qfp.queueFlags & vk::QueueFlagBits::eGraphics; } );
+
+	return static_cast<uint32_t>( std::distance( queueFamilyProperties.begin(), graphicsQueueFamilyProperty ) );
+}
 
 std::vector<const char*> getRequiredExtensions() {
     uint32_t glfwExtensionCount = 0;
@@ -50,8 +64,9 @@ std::vector<const char*> deviceExtensions = {
 	vk::KHRCreateRenderpass2ExtensionName
 };
 
+
+
 // GPU pointer
-vk::raii::PhysicalDevice physicalDevice = nullptr;
 
 class HelloTriangleApplication
 {
@@ -68,6 +83,14 @@ class HelloTriangleApplication
 	GLFWwindow *window = nullptr;
 	vk::raii::Context  context;
 	vk::raii::Instance instance = nullptr;
+	vk::raii::PhysicalDevice physicalDevice = nullptr;
+	vk::raii::Device device = nullptr;
+	vk::raii::Queue graphicsQueue = nullptr;
+	vk::raii::SurfaceKHR surface = nullptr;
+	vk::raii::Queue presentQueue = nullptr;
+
+	std::vector<const char*> deviceExtensions = {
+		vk::KHRSwapchainExtensionName};
 
 	void initWindow()
 	{
@@ -86,7 +109,7 @@ class HelloTriangleApplication
 		window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
 		if (!window)
 			throw std::runtime_error("Failed to create GLFW window");
-			
+
 		glfwShowWindow(window);
 	}
 
@@ -94,7 +117,84 @@ class HelloTriangleApplication
 	{
 		createInstance();
 		//setupDebugMessenger(); TODO?
+		createSurface();
 		pickPhysicalDevice();	// find and select a GPU to use
+		createLogicalDevice();	// create logical device out of physical device selected
+	}
+	void createSurface()
+	{
+		VkSurfaceKHR       _surface;
+		if (glfwCreateWindowSurface(*instance, window, nullptr, &_surface) != 0) {
+			throw std::runtime_error("failed to create window surface!");
+		}
+		surface = vk::raii::SurfaceKHR(instance, _surface);
+	}
+	void createLogicalDevice()
+	{
+		// gather queue families and their properties
+		std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+	    // get the first index into queueFamilyProperties which supports graphics
+	    auto graphicsQueueFamilyProperty = std::ranges::find_if( queueFamilyProperties, []( auto const & qfp )
+	                    { return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0); } );
+
+	    auto graphicsIndex = static_cast<uint32_t>( std::distance( queueFamilyProperties.begin(), graphicsQueueFamilyProperty ) );
+
+	    // determine a queueFamilyIndex that supports present
+	    // first check if the graphicsIndex is good enough
+	    auto presentIndex = physicalDevice.getSurfaceSupportKHR( graphicsIndex, *surface )
+	                                       ? graphicsIndex
+	                                       : static_cast<uint32_t>( queueFamilyProperties.size() );
+	    if ( presentIndex == queueFamilyProperties.size() )
+	    {
+	        // the graphicsIndex doesn't support present -> look for another family index that supports both
+	        // graphics and present
+	        for ( size_t i = 0; i < queueFamilyProperties.size(); i++ )
+	        {
+	            if ( ( queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics ) &&
+	                 physicalDevice.getSurfaceSupportKHR( static_cast<uint32_t>( i ), *surface ) )
+	            {
+	                graphicsIndex = static_cast<uint32_t>( i );
+	                presentIndex  = graphicsIndex;
+	                break;
+	            }
+	        }
+	        if ( presentIndex == queueFamilyProperties.size() )
+	        {
+	            // there's nothing like a single family index that supports both graphics and present -> look for another
+	            // family index that supports present
+	            for ( size_t i = 0; i < queueFamilyProperties.size(); i++ )
+	            {
+	                if ( physicalDevice.getSurfaceSupportKHR( static_cast<uint32_t>( i ), *surface ) )
+	                {
+	                    presentIndex = static_cast<uint32_t>( i );
+	                    break;
+	                }
+	            }
+	        }
+	    }
+	    if ( ( graphicsIndex == queueFamilyProperties.size() ) || ( presentIndex == queueFamilyProperties.size() ) )
+	    {
+	        throw std::runtime_error( "Could not find a queue for graphics or present -> terminating" );
+	    }
+
+	    // query for Vulkan 1.3 features
+	    auto features = physicalDevice.getFeatures2();
+	    vk::PhysicalDeviceVulkan13Features vulkan13Features;
+	    vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT extendedDynamicStateFeatures;
+	    vulkan13Features.dynamicRendering = vk::True;
+	    extendedDynamicStateFeatures.extendedDynamicState = vk::True;
+	    vulkan13Features.pNext = &extendedDynamicStateFeatures;
+	    features.pNext = &vulkan13Features;
+	    // create a Device
+	    float                     queuePriority = 0.5f;
+	    vk::DeviceQueueCreateInfo deviceQueueCreateInfo { .queueFamilyIndex = graphicsIndex, .queueCount = 1, .pQueuePriorities = &queuePriority };
+	    vk::DeviceCreateInfo      deviceCreateInfo{ .pNext =  &features, .queueCreateInfoCount = 1, .pQueueCreateInfos = &deviceQueueCreateInfo };
+	    deviceCreateInfo.enabledExtensionCount = deviceExtensions.size();
+	    deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
+
+	    device = vk::raii::Device( physicalDevice, deviceCreateInfo );
+	    graphicsQueue = vk::raii::Queue( device, graphicsIndex, 0 );
+	    presentQueue = vk::raii::Queue( device, presentIndex, 0 );
 	}
 	void pickPhysicalDevice()
 	{
@@ -176,19 +276,19 @@ class HelloTriangleApplication
 				throw std::runtime_error("Required GLFW extension not supported: " + std::string(glfwExtensions[i]));
 			}
 		}
-		/*
+
 		vk::InstanceCreateInfo createInfo{
 			.pApplicationInfo = &appInfo,
 			.enabledExtensionCount = glfwExtensionCount,
 			.ppEnabledExtensionNames = glfwExtensions};
-		*/
+		/*
 		vk::InstanceCreateInfo createInfo{
 			.pApplicationInfo        = &appInfo,
 			.enabledLayerCount       = static_cast<uint32_t>(requiredLayers.size()),
 			.ppEnabledLayerNames     = requiredLayers.data(),
 			.enabledExtensionCount   = 0,
 			.ppEnabledExtensionNames = nullptr };
-		
+		*/
 		instance = vk::raii::Instance(context, createInfo);
 		printf("extensions: %i\n", glfwExtensionCount);
 	}
