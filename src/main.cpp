@@ -106,7 +106,9 @@ class HelloTriangleApplication
 	vk::raii::Queue graphicsQueue = nullptr;
 	vk::raii::SurfaceKHR surface = nullptr;
 	vk::raii::Queue presentQueue = nullptr;
-
+	std::vector<vk::raii::ImageView> swapChainImageViews;
+	vk::SurfaceFormatKHR swapChainSurfaceFormat;
+	vk::Extent2D swapChainExtent;
 	std::vector<const char*> deviceExtensions = {
 		vk::KHRSwapchainExtensionName};
 
@@ -171,7 +173,15 @@ class HelloTriangleApplication
 		createSurface();
 		pickPhysicalDevice();	// find and select a GPU to use
 		createLogicalDevice();	// create logical device out of physical device selected
-		//createSwapChain();
+		createSwapChain();
+		createImageViews();
+
+	}
+	void createImageViews()
+	{
+		assert(swapChainImageViews.empty());
+
+		vk::ImageViewCreateInfo imageViewCreateInfo{.viewType = vk::ImageViewType::e2D, .format = swapChainSurfaceFormat.format, .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}};
 	}
 	void createSurface()
 	{
@@ -257,11 +267,12 @@ class HelloTriangleApplication
 	}
 	void createSwapChain() {
 		auto surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR( *surface );
-		auto swapChainSurfaceFormat = chooseSwapSurfaceFormat(physicalDevice.getSurfaceFormatsKHR( *surface ));
-		auto swapChainExtent = chooseSwapExtent(surfaceCapabilities);
+		swapChainSurfaceFormat = chooseSwapSurfaceFormat(physicalDevice.getSurfaceFormatsKHR( *surface ));
+		swapChainExtent = chooseSwapExtent(surfaceCapabilities);
 		auto minImageCount = std::max( 3u, surfaceCapabilities.minImageCount );
 		minImageCount = ( surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount ) ? surfaceCapabilities.maxImageCount : minImageCount;
 
+		
 		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
 
 		if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount) {
@@ -286,9 +297,19 @@ class HelloTriangleApplication
 
 		vk::raii::SwapchainKHR swapChain = nullptr;
 		swapChain = vk::raii::SwapchainKHR( device, swapChainCreateInfo );
-		
+
 		std::vector<vk::Image> swapChainImages;
 		swapChainImages = swapChain.getImages();
+		/*
+		TODO
+		vk::Format swapChainImageFormat = vk::Format::eUndefined;
+		vk::Extent2D swapChainExtent;
+
+		swapChainImageFormat = surfaceFormat.format;
+		swapChainExtent = extent;
+
+		figure out what all this is
+		*/
 	}
 	void pickPhysicalDevice()
 	{
