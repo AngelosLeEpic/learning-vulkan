@@ -6,6 +6,9 @@ pkgs.mkShell {
     pkgs.vulkan-headers
     pkgs.vulkan-loader
     pkgs.vulkan-validation-layers
+    pkgs.vulkan-tools
+    pkgs.vulkan-helper
+    pkgs.vulkan-volk
     pkgs.glm
     pkgs.cmake
     pkgs.ninja

@@ -16,9 +16,27 @@ import vulkan_hpp;
 #include <iostream>
 #include <stdexcept>
 #include <optional>
+#include <cstdint> // Necessary for uint32_t
+#include <limits> // Necessary for std::numeric_limits
+#include <algorithm> // Necessary for std::clamp
 #include <memory>
 const uint32_t WIDTH  = 800;
 const uint32_t HEIGHT = 600;
+/*
+vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
+    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+        return capabilities.currentExtent;
+    }
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    return {
+        std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+        std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
+    };
+}
+*/
+
 
 const std::vector<char const*> validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
@@ -92,6 +110,39 @@ class HelloTriangleApplication
 	std::vector<const char*> deviceExtensions = {
 		vk::KHRSwapchainExtensionName};
 
+	// internal helper functions
+	vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes) {
+		for (const auto& availablePresentMode : availablePresentModes) {
+			if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
+				return availablePresentMode;
+			}
+		}
+		return vk::PresentModeKHR::eFifo;
+	}
+
+	vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
+		for (const auto& availableFormat : availableFormats) {
+			if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
+				return availableFormat;
+			}
+		}
+
+		return availableFormats[0];
+	}
+
+	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
+		if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+			return capabilities.currentExtent;
+		}
+		int width, height;
+		glfwGetFramebufferSize(window, &width, &height);
+
+		return {
+			std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+			std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
+		};
+	}
+
 	void initWindow()
 	{
 		// Set platform to Wayland if available
@@ -120,6 +171,7 @@ class HelloTriangleApplication
 		createSurface();
 		pickPhysicalDevice();	// find and select a GPU to use
 		createLogicalDevice();	// create logical device out of physical device selected
+		//createSwapChain();
 	}
 	void createSurface()
 	{
@@ -195,6 +247,48 @@ class HelloTriangleApplication
 	    device = vk::raii::Device( physicalDevice, deviceCreateInfo );
 	    graphicsQueue = vk::raii::Queue( device, graphicsIndex, 0 );
 	    presentQueue = vk::raii::Queue( device, presentIndex, 0 );
+
+		// get surface capabilities for swapchain
+		auto surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR( surface );
+		// get supported surface formats
+		std::vector<vk::SurfaceFormatKHR> availableFormats = physicalDevice.getSurfaceFormatsKHR( surface );
+		// get available presentation forms
+		std::vector<vk::PresentModeKHR> availablePresentModes = physicalDevice.getSurfacePresentModesKHR( surface );
+	}
+	void createSwapChain() {
+		auto surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR( *surface );
+		auto swapChainSurfaceFormat = chooseSwapSurfaceFormat(physicalDevice.getSurfaceFormatsKHR( *surface ));
+		auto swapChainExtent = chooseSwapExtent(surfaceCapabilities);
+		auto minImageCount = std::max( 3u, surfaceCapabilities.minImageCount );
+		minImageCount = ( surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount ) ? surfaceCapabilities.maxImageCount : minImageCount;
+
+		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+
+		if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount) {
+			imageCount = surfaceCapabilities.maxImageCount;
+		}
+		vk::SwapchainCreateInfoKHR swapChainCreateInfo{
+			.flags = vk::SwapchainCreateFlagsKHR(),
+			.surface = *surface,
+			.minImageCount = minImageCount,
+			.imageFormat = swapChainSurfaceFormat.format,
+			.imageColorSpace = swapChainSurfaceFormat.colorSpace,
+			.imageExtent = swapChainExtent,
+			.imageArrayLayers =1,
+			.imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+			.imageSharingMode = vk::SharingMode::eExclusive,
+			.preTransform = surfaceCapabilities.currentTransform,
+			.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+			.presentMode = chooseSwapPresentMode(physicalDevice.getSurfacePresentModesKHR( *surface )),
+			.clipped = vk::True,
+			.oldSwapchain = nullptr
+		};
+
+		vk::raii::SwapchainKHR swapChain = nullptr;
+		swapChain = vk::raii::SwapchainKHR( device, swapChainCreateInfo );
+		
+		std::vector<vk::Image> swapChainImages;
+		swapChainImages = swapChain.getImages();
 	}
 	void pickPhysicalDevice()
 	{
