@@ -75,13 +75,14 @@ std::vector<const char*> getRequiredExtensions() {
 }
 
 // names of extensions and features the GPU will need to have as a requirment for my engine
+/*
 std::vector<const char*> deviceExtensions = {
 	vk::KHRSwapchainExtensionName,
 	vk::KHRSpirv14ExtensionName,
 	vk::KHRSynchronization2ExtensionName,
 	vk::KHRCreateRenderpass2ExtensionName
 };
-
+*/
 
 
 // GPU pointer
@@ -109,6 +110,8 @@ class HelloTriangleApplication
 	std::vector<vk::raii::ImageView> swapChainImageViews;
 	vk::SurfaceFormatKHR swapChainSurfaceFormat;
 	vk::Extent2D swapChainExtent;
+	std::vector<vk::Image> swapChainImages;
+	vk::raii::SwapchainKHR swapChain = nullptr;
 	std::vector<const char*> deviceExtensions = {
 		vk::KHRSwapchainExtensionName};
 
@@ -180,8 +183,26 @@ class HelloTriangleApplication
 	void createImageViews()
 	{
 		assert(swapChainImageViews.empty());
-
 		vk::ImageViewCreateInfo imageViewCreateInfo{.viewType = vk::ImageViewType::e2D, .format = swapChainSurfaceFormat.format, .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}};
+		// potentially repalce above line with:
+		/*
+		vk::ImageViewCreateInfo imageViewCreateInfo{};
+			imageViewCreateInfo.viewType = vk::ImageViewType::e2D;
+			imageViewCreateInfo.format = swapChainSurfaceFormat.format;
+			imageViewCreateInfo.components = vk::ComponentMapping{};
+			imageViewCreateInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			imageViewCreateInfo.subresourceRange.levelCount = 1;
+			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			imageViewCreateInfo.subresourceRange.layerCount = 1;
+		*/
+		for (auto& image : swapChainImages)
+		{
+			imageViewCreateInfo.image = image;
+			swapChainImageViews.emplace_back(device, imageViewCreateInfo);
+		}
+		printf("image viewer creation complete\n");
+
 	}
 	void createSurface()
 	{
@@ -295,21 +316,17 @@ class HelloTriangleApplication
 			.oldSwapchain = nullptr
 		};
 
-		vk::raii::SwapchainKHR swapChain = nullptr;
 		swapChain = vk::raii::SwapchainKHR( device, swapChainCreateInfo );
-
-		std::vector<vk::Image> swapChainImages;
 		swapChainImages = swapChain.getImages();
-		/*
-		TODO
+
 		vk::Format swapChainImageFormat = vk::Format::eUndefined;
 		vk::Extent2D swapChainExtent;
 
-		swapChainImageFormat = surfaceFormat.format;
-		swapChainExtent = extent;
+		//swapChainImageFormat = surfaceFormat.format;
+		//swapChainExtent = extent;
 
-		figure out what all this is
-		*/
+		//figure out what all this is
+
 	}
 	void pickPhysicalDevice()
 	{
