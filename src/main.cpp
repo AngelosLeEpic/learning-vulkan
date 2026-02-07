@@ -178,7 +178,11 @@ class HelloTriangleApplication
 		createLogicalDevice();	// create logical device out of physical device selected
 		createSwapChain();
 		createImageViews();
-
+		createGraphicsPipeline();
+	}
+	void createGraphicsPipeline() 
+	{
+		
 	}
 	void createImageViews()
 	{
