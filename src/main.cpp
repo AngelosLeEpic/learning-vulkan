@@ -20,6 +20,7 @@ import vulkan_hpp;
 #include <limits> // Necessary for std::numeric_limits
 #include <algorithm> // Necessary for std::clamp
 #include <memory>
+#include <fstream>
 const uint32_t WIDTH  = 800;
 const uint32_t HEIGHT = 600;
 /*
@@ -37,6 +38,20 @@ vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
 }
 */
 
+
+
+static std::vector<char> readFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("failed to open file!");
+    }
+
+	std::vector<char> buffer(file.tellg());
+	file.seekg(0, std::ios::beg);
+	file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+	file.close();
+	return buffer;
+}
 
 const std::vector<char const*> validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
@@ -112,9 +127,15 @@ class HelloTriangleApplication
 	vk::Extent2D swapChainExtent;
 	std::vector<vk::Image> swapChainImages;
 	vk::raii::SwapchainKHR swapChain = nullptr;
+	vk::PipelineVertexInputStateCreateInfo vertexInputInfo;
 	std::vector<const char*> deviceExtensions = {
 		vk::KHRSwapchainExtensionName};
 
+	[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const {
+		vk::ShaderModuleCreateInfo createInfo{ .codeSize = code.size() * sizeof(char), .pCode = reinterpret_cast<const uint32_t*>(code.data()) };
+		vk::raii::ShaderModule shaderModule{ device, createInfo };
+		return shaderModule;
+	}
 	// internal helper functions
 	vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes) {
 		for (const auto& availablePresentMode : availablePresentModes) {
@@ -182,8 +203,37 @@ class HelloTriangleApplication
 	}
 	void createGraphicsPipeline() 
 	{
+    	vk::raii::ShaderModule shaderModule = createShaderModule(readFile("./shaders/src/sh_slang.spv"));
+		vk::PipelineShaderStageCreateInfo vertShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eVertex, .module = shaderModule,  .pName = "vertMain" };
+		vk::PipelineShaderStageCreateInfo fragShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eFragment, .module = shaderModule, .pName = "fragMain" };
+		vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+		std::vector dynamicStates = {
+			vk::DynamicState::eViewport,
+			vk::DynamicState::eScissor
+		};
+		vk::PipelineDynamicStateCreateInfo dynamicState{ .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data() };
+		vk::PipelineInputAssemblyStateCreateInfo inputAssembly{  .topology = vk::PrimitiveTopology::eTriangleList };
+		vk::Viewport{ 0.0f, 0.0f, static_cast<float>(swapChainExtent.width), static_cast<float>(swapChainExtent.height), 0.0f, 1.0f };
+		vk::PipelineDynamicStateCreateInfo dynamicState({}, dynamicStates.size(), dynamicStates.data());
+		vk::PipelineViewportStateCreateInfo viewportState({}, 1, {}, 1);
+
+		vk::PipelineRasterizationStateCreateInfo rasterizer{  .depthClampEnable = vk::False, .rasterizerDiscardEnable = vk::False,
+			.polygonMode = vk::PolygonMode::eFill, .cullMode = vk::CullModeFlagBits::eBack,
+			.frontFace = vk::FrontFace::eClockwise, .depthBiasEnable = vk::False,
+			.depthBiasSlopeFactor = 1.0f, .lineWidth = 1.0f };
+		vk::PipelineMultisampleStateCreateInfo multisampling{.rasterizationSamples = vk::SampleCountFlagBits::e1, .sampleShadingEnable = vk::False};
+		//VkPipelineDepthStencilStateCreateInfo = nullptr;
 		
-	}
+		vk::PipelineColorBlendAttachmentState colorBlendAttachment{
+			.blendEnable    = vk::False,
+			.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
+		};
+		vk::PipelineColorBlendStateCreateInfo colorBlending{.logicOpEnable = vk::False, .logicOp = vk::LogicOp::eCopy, .attachmentCount = 1, .pAttachments = &colorBlendAttachment};
+
+		vk::PipelineLayoutCreateInfo pipelineLayoutInfo{  .setLayoutCount = 0, .pushConstantRangeCount = 0 };
+		vk::raii::PipelineLayout pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
+
 	void createImageViews()
 	{
 		assert(swapChainImageViews.empty());
