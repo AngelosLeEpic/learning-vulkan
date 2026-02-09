@@ -1,3 +1,0 @@
-/home/hydrogen/Desktop/learning-vulkan/build/CMakeFiles/Tutorial.dir
-/home/hydrogen/Desktop/learning-vulkan/build/CMakeFiles/edit_cache.dir
-/home/hydrogen/Desktop/learning-vulkan/build/CMakeFiles/rebuild_cache.dir
