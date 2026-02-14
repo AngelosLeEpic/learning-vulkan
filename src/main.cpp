@@ -82,7 +82,6 @@ std::vector<const char*> getRequiredExtensions() {
 
     std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
     if (enableValidationLayers) {
-
         extensions.push_back(vk::EXTDebugUtilsExtensionName );
     }
 
@@ -122,17 +121,22 @@ class HelloTriangleApplication
 	vk::raii::Queue graphicsQueue = nullptr;
 	vk::raii::SurfaceKHR surface = nullptr;
 	vk::raii::Queue presentQueue = nullptr;
+	vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
 	std::vector<vk::raii::ImageView> swapChainImageViews;
 	vk::SurfaceFormatKHR swapChainSurfaceFormat;
 	vk::Extent2D swapChainExtent;
 	std::vector<vk::Image> swapChainImages;
 	vk::raii::SwapchainKHR swapChain = nullptr;
 	vk::PipelineVertexInputStateCreateInfo vertexInputInfo;
+	vk::raii::Pipeline       graphicsPipeline = nullptr;
+	vk::raii::PipelineLayout pipelineLayout   = nullptr;
 	std::vector<const char*> deviceExtensions = {
 		vk::KHRSwapchainExtensionName};
 
 	[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const {
+		printf("reading shader file\n");
 		vk::ShaderModuleCreateInfo createInfo{ .codeSize = code.size() * sizeof(char), .pCode = reinterpret_cast<const uint32_t*>(code.data()) };
+		printf("creating shader module\n");
 		vk::raii::ShaderModule shaderModule{ device, createInfo };
 		return shaderModule;
 	}
@@ -193,7 +197,7 @@ class HelloTriangleApplication
 	void initVulkan()
 	{
 		createInstance();
-		//setupDebugMessenger(); TODO?
+		setupDebugMessenger();
 		createSurface();
 		pickPhysicalDevice();	// find and select a GPU to use
 		createLogicalDevice();	// create logical device out of physical device selected
@@ -201,22 +205,36 @@ class HelloTriangleApplication
 		createImageViews();
 		createGraphicsPipeline();
 	}
+	void setupDebugMessenger(){
+		if (!enableValidationLayers){
+			printf("debugger is not on btw\n");
+			return;
+		}
+		vk::DebugUtilsMessageSeverityFlagsEXT severityFlags(vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError);
+		vk::DebugUtilsMessageTypeFlagsEXT messageTypeFlags(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
+		vk::DebugUtilsMessengerCreateInfoEXT  debugUtilsMessengerCreateInfoEXT{
+		     .messageSeverity = severityFlags,
+		     .messageType     = messageTypeFlags,
+		     .pfnUserCallback = &debugCallback};
+			 debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
+		printf("debuggest set up\n");
+	}
 	void createGraphicsPipeline() 
 	{
-    	vk::raii::ShaderModule shaderModule = createShaderModule(readFile("./shaders/src/sh_slang.spv"));
+		printf("creating graphics pipeline\n");
+    	vk::raii::ShaderModule shaderModule = createShaderModule(readFile("../src/shaders/src/sh_slang.spv"));
 		vk::PipelineShaderStageCreateInfo vertShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eVertex, .module = shaderModule,  .pName = "vertMain" };
 		vk::PipelineShaderStageCreateInfo fragShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eFragment, .module = shaderModule, .pName = "fragMain" };
 		vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
-
 		std::vector dynamicStates = {
 			vk::DynamicState::eViewport,
 			vk::DynamicState::eScissor
 		};
-		vk::PipelineDynamicStateCreateInfo dynamicState{ .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data() };
+		vk::PipelineDynamicStateCreateInfo dynamicState{.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data()};
+
 		vk::PipelineInputAssemblyStateCreateInfo inputAssembly{  .topology = vk::PrimitiveTopology::eTriangleList };
 		vk::Viewport{ 0.0f, 0.0f, static_cast<float>(swapChainExtent.width), static_cast<float>(swapChainExtent.height), 0.0f, 1.0f };
-		vk::PipelineDynamicStateCreateInfo dynamicState({}, dynamicStates.size(), dynamicStates.data());
-		vk::PipelineViewportStateCreateInfo viewportState({}, 1, {}, 1);
+		vk::PipelineViewportStateCreateInfo viewportState{.viewportCount = 1, .scissorCount = 1};
 
 		vk::PipelineRasterizationStateCreateInfo rasterizer{  .depthClampEnable = vk::False, .rasterizerDiscardEnable = vk::False,
 			.polygonMode = vk::PolygonMode::eFill, .cullMode = vk::CullModeFlagBits::eBack,
@@ -224,16 +242,52 @@ class HelloTriangleApplication
 			.depthBiasSlopeFactor = 1.0f, .lineWidth = 1.0f };
 		vk::PipelineMultisampleStateCreateInfo multisampling{.rasterizationSamples = vk::SampleCountFlagBits::e1, .sampleShadingEnable = vk::False};
 		//VkPipelineDepthStencilStateCreateInfo = nullptr;
-		
+			
 		vk::PipelineColorBlendAttachmentState colorBlendAttachment{
 			.blendEnable    = vk::False,
 			.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
-		};
+		
 		vk::PipelineColorBlendStateCreateInfo colorBlending{.logicOpEnable = vk::False, .logicOp = vk::LogicOp::eCopy, .attachmentCount = 1, .pAttachments = &colorBlendAttachment};
 
 		vk::PipelineLayoutCreateInfo pipelineLayoutInfo{  .setLayoutCount = 0, .pushConstantRangeCount = 0 };
 		vk::raii::PipelineLayout pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
-
+		
+		vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfo> pipelineCreateInfoChain = {
+		    {.stageCount          = 2,
+		     .pStages             = shaderStages,
+		     .pVertexInputState   = &vertexInputInfo,
+		     .pInputAssemblyState = &inputAssembly,
+		     .pViewportState      = &viewportState,
+		     .pRasterizationState = &rasterizer,
+		     .pMultisampleState   = &multisampling,
+		     .pColorBlendState    = &colorBlending,
+		     .pDynamicState       = &dynamicState,
+		     .layout              = pipelineLayout,
+		     .renderPass          = nullptr},
+		    {.colorAttachmentCount = 1, .pColorAttachmentFormats = &swapChainSurfaceFormat.format}};
+		
+		graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
+		/*		should this be here?
+		
+		// pipeline definition
+		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages);
+		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages, &vertexInputInfo, &inputAssembly, {}, &viewportState, &rasterizer, &multisampling, {}, &colorBlending,
+            &dynamicState);
+		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages, &vertexInputInfo, &inputAssembly, {}, &viewportState, &rasterizer, &multisampling, {}, &colorBlending,
+		&dynamicState, *pipelineLayout);
+		vk::PipelineRenderingCreateInfo pipelineRenderingCreateInfo{ .colorAttachmentCount = 1, .pColorAttachmentFormats = &swapChainImageFormat };
+		vk::GraphicsPipelineCreateInfo pipelineInfo{ .pNext = &pipelineRenderingCreateInfo,
+			.stageCount = 2, .pStages = shaderStages,
+			.pVertexInputState = &vertexInputInfo, .pInputAssemblyState = &inputAssembly,
+			.pViewportState = &viewportState, .pRasterizationState = &rasterizer,
+			.pMultisampleState = &multisampling, .pColorBlendState = &colorBlending,
+			.pDynamicState = &dynamicState, .layout = pipelineLayout, .renderPass = nullptr };
+		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+		pipelineInfo.basePipelineIndex = -1; // Optional
+		vk::raii::Pipeline graphicsPipeline = nullptr;
+		graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineInfo);
+		*/
+	}
 	void createImageViews()
 	{
 		assert(swapChainImageViews.empty());
@@ -462,7 +516,14 @@ class HelloTriangleApplication
 				throw std::runtime_error("Required GLFW extension not supported: " + std::string(glfwExtensions[i]));
 			}
 		}
-
+			auto requiredExtensions = getRequiredExtensions();
+				vk::InstanceCreateInfo createInfo;
+				createInfo.pApplicationInfo        = &appInfo;
+				createInfo.enabledLayerCount       = static_cast<uint32_t>(requiredLayers.size());
+				createInfo.ppEnabledLayerNames     = requiredLayers.data();
+				createInfo.enabledExtensionCount   = static_cast<uint32_t>(requiredExtensions.size());
+				createInfo.ppEnabledExtensionNames = requiredExtensions.data();
+		/*
 		vk::InstanceCreateInfo createInfo{
 			.pApplicationInfo = &appInfo,
 			.enabledExtensionCount = glfwExtensionCount,
@@ -474,7 +535,16 @@ class HelloTriangleApplication
 			.ppEnabledLayerNames     = requiredLayers.data(),
 			.enabledExtensionCount   = 0,
 			.ppEnabledExtensionNames = nullptr };
+		
+		vk::InstanceCreateInfo createInfo{
+			.pApplicationInfo        = &appInfo,
+			.enabledLayerCount       = static_cast<uint32_t>(validationLayers.size()),
+			.ppEnabledLayerNames     = validationLayers.data(),
+			.enabledExtensionCount   = glfwExtensionCount,
+			.ppEnabledExtensionNames = glfwExtensions,
+		};
 		*/
+
 		instance = vk::raii::Instance(context, createInfo);
 		printf("extensions: %i\n", glfwExtensionCount);
 	}
@@ -491,6 +561,15 @@ class HelloTriangleApplication
 		glfwDestroyWindow(window);
 
 		glfwTerminate();
+	}
+static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *)
+	{
+		if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError || severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
+		{
+			std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
+		}
+
+		return vk::False;
 	}
 };
 
