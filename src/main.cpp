@@ -225,10 +225,28 @@ class HelloTriangleApplication
 		debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
 		printf("debuggest set up\n");
 	}
+	void setupDebugMessenger(){
+		if (!enableValidationLayers){
+			printf("debugger is not on btw\n");
+			return;
+		}
+		vk::DebugUtilsMessageSeverityFlagsEXT severityFlags(vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError);
+		vk::DebugUtilsMessageTypeFlagsEXT messageTypeFlags(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
+		vk::DebugUtilsMessengerCreateInfoEXT  debugUtilsMessengerCreateInfoEXT{
+		     .messageSeverity = severityFlags,
+		     .messageType     = messageTypeFlags,
+		     .pfnUserCallback = &debugCallback};
+			 debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
+		printf("debuggest set up\n");
+	}
 	void createGraphicsPipeline() 
 	{
 		printf("creating graphics pipeline\n");
+<<<<<<< HEAD
     	vk::raii::ShaderModule shaderModule = createShaderModule(readFile("slang.spv"));
+=======
+    	vk::raii::ShaderModule shaderModule = createShaderModule(readFile("../src/shaders/src/sh_slang.spv"));
+>>>>>>> main
 		vk::PipelineShaderStageCreateInfo vertShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eVertex, .module = shaderModule,  .pName = "vertMain" };
 		vk::PipelineShaderStageCreateInfo fragShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eFragment, .module = shaderModule, .pName = "fragMain" };
 		vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
@@ -257,6 +275,10 @@ class HelloTriangleApplication
 
 		vk::PipelineLayoutCreateInfo pipelineLayoutInfo{  .setLayoutCount = 0, .pushConstantRangeCount = 0 };
 		vk::raii::PipelineLayout pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
+<<<<<<< HEAD
+=======
+		
+>>>>>>> main
 		vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfo> pipelineCreateInfoChain = {
 		    {.stageCount          = 2,
 		     .pStages             = shaderStages,
@@ -270,7 +292,32 @@ class HelloTriangleApplication
 		     .layout              = pipelineLayout,
 		     .renderPass          = nullptr},
 		    {.colorAttachmentCount = 1, .pColorAttachmentFormats = &swapChainSurfaceFormat.format}};
+<<<<<<< HEAD
 		graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
+=======
+		
+		graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
+		/*		should this be here?
+		
+		// pipeline definition
+		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages);
+		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages, &vertexInputInfo, &inputAssembly, {}, &viewportState, &rasterizer, &multisampling, {}, &colorBlending,
+            &dynamicState);
+		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages, &vertexInputInfo, &inputAssembly, {}, &viewportState, &rasterizer, &multisampling, {}, &colorBlending,
+		&dynamicState, *pipelineLayout);
+		vk::PipelineRenderingCreateInfo pipelineRenderingCreateInfo{ .colorAttachmentCount = 1, .pColorAttachmentFormats = &swapChainImageFormat };
+		vk::GraphicsPipelineCreateInfo pipelineInfo{ .pNext = &pipelineRenderingCreateInfo,
+			.stageCount = 2, .pStages = shaderStages,
+			.pVertexInputState = &vertexInputInfo, .pInputAssemblyState = &inputAssembly,
+			.pViewportState = &viewportState, .pRasterizationState = &rasterizer,
+			.pMultisampleState = &multisampling, .pColorBlendState = &colorBlending,
+			.pDynamicState = &dynamicState, .layout = pipelineLayout, .renderPass = nullptr };
+		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+		pipelineInfo.basePipelineIndex = -1; // Optional
+		vk::raii::Pipeline graphicsPipeline = nullptr;
+		graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineInfo);
+		*/
+>>>>>>> main
 	}
 	void createImageViews()
 	{
@@ -534,6 +581,7 @@ class HelloTriangleApplication
 			.enabledExtensionCount   = glfwExtensionCount,
 			.ppEnabledExtensionNames = glfwExtensions,
 		};
+<<<<<<< HEAD
 		
 		vk::InstanceCreateInfo createInfo{
 			.pApplicationInfo        = &appInfo,
@@ -542,6 +590,8 @@ class HelloTriangleApplication
 			.enabledExtensionCount   = glfwExtensionCount,
 			.ppEnabledExtensionNames = glfwExtensions,
 		};
+=======
+>>>>>>> main
 		*/
 
 		instance = vk::raii::Instance(context, createInfo);

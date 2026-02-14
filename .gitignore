@@ -3,6 +3,7 @@
 .idea
 *.html
 ads.txt
+build/
 
 **/_out/*
 **/.vscode/*
