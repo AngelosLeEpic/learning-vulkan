@@ -41,6 +41,7 @@ vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
 
 
 static std::vector<char> readFile(const std::string& filename) {
+	std::cout << filename << std::endl;
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {
         throw std::runtime_error("failed to open file!");
@@ -132,6 +133,7 @@ class HelloTriangleApplication
 	vk::raii::PipelineLayout pipelineLayout   = nullptr;
 	std::vector<const char*> deviceExtensions = {
 		vk::KHRSwapchainExtensionName};
+	vk::raii::CommandPool commandPool = nullptr;
 
 	[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const {
 		printf("reading shader file\n");
@@ -204,6 +206,10 @@ class HelloTriangleApplication
 		createSwapChain();
 		createImageViews();
 		createGraphicsPipeline();
+	    createCommandPool();
+	}
+	void createCommandPool(){
+		
 	}
 	void setupDebugMessenger(){
 		if (!enableValidationLayers){
@@ -222,7 +228,7 @@ class HelloTriangleApplication
 	void createGraphicsPipeline() 
 	{
 		printf("creating graphics pipeline\n");
-    	vk::raii::ShaderModule shaderModule = createShaderModule(readFile("../src/shaders/src/sh_slang.spv"));
+    	vk::raii::ShaderModule shaderModule = createShaderModule(readFile("slang.spv"));
 		vk::PipelineShaderStageCreateInfo vertShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eVertex, .module = shaderModule,  .pName = "vertMain" };
 		vk::PipelineShaderStageCreateInfo fragShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eFragment, .module = shaderModule, .pName = "fragMain" };
 		vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
@@ -265,26 +271,6 @@ class HelloTriangleApplication
 		     .renderPass          = nullptr},
 		    {.colorAttachmentCount = 1, .pColorAttachmentFormats = &swapChainSurfaceFormat.format}};
 		graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
-		/*		should this be here?
-		
-		// pipeline definition
-		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages);
-		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages, &vertexInputInfo, &inputAssembly, {}, &viewportState, &rasterizer, &multisampling, {}, &colorBlending,
-            &dynamicState);
-		vk::GraphicsPipelineCreateInfo pipelineInfo({}, 2, shaderStages, &vertexInputInfo, &inputAssembly, {}, &viewportState, &rasterizer, &multisampling, {}, &colorBlending,
-		&dynamicState, *pipelineLayout);
-		vk::PipelineRenderingCreateInfo pipelineRenderingCreateInfo{ .colorAttachmentCount = 1, .pColorAttachmentFormats = &swapChainImageFormat };
-		vk::GraphicsPipelineCreateInfo pipelineInfo{ .pNext = &pipelineRenderingCreateInfo,
-			.stageCount = 2, .pStages = shaderStages,
-			.pVertexInputState = &vertexInputInfo, .pInputAssemblyState = &inputAssembly,
-			.pViewportState = &viewportState, .pRasterizationState = &rasterizer,
-			.pMultisampleState = &multisampling, .pColorBlendState = &colorBlending,
-			.pDynamicState = &dynamicState, .layout = pipelineLayout, .renderPass = nullptr };
-		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
-		pipelineInfo.basePipelineIndex = -1; // Optional
-		vk::raii::Pipeline graphicsPipeline = nullptr;
-		graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineInfo);
-		*/
 	}
 	void createImageViews()
 	{
@@ -368,12 +354,19 @@ class HelloTriangleApplication
 
 	    // query for Vulkan 1.3 features
 	    auto features = physicalDevice.getFeatures2();
+		vk::PhysicalDeviceVulkan11Features vulkan11Features{};
 	    vk::PhysicalDeviceVulkan13Features vulkan13Features;
 	    vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT extendedDynamicStateFeatures;
-	    vulkan13Features.dynamicRendering = vk::True;
-	    extendedDynamicStateFeatures.extendedDynamicState = vk::True;
-	    vulkan13Features.pNext = &extendedDynamicStateFeatures;
-	    features.pNext = &vulkan13Features;
+		// Enable required features
+		vulkan11Features.shaderDrawParameters = vk::True;
+		vulkan13Features.dynamicRendering = vk::True;
+		extendedDynamicStateFeatures.extendedDynamicState = vk::True;
+		// Chain them properly
+		extendedDynamicStateFeatures.pNext = nullptr;
+		vulkan13Features.pNext = &extendedDynamicStateFeatures;
+		vulkan11Features.pNext = &vulkan13Features;
+		features.pNext = &vulkan11Features;
+
 	    // create a Device
 	    float                     queuePriority = 0.5f;
 	    vk::DeviceQueueCreateInfo deviceQueueCreateInfo { .queueFamilyIndex = graphicsIndex, .queueCount = 1, .pQueuePriorities = &queuePriority };

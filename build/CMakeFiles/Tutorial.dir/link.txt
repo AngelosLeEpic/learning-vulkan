@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/Tutorial.dir/link.d CMakeFiles/Tutorial.dir/src/main.cpp.o -o Tutorial  /usr/lib/libglfw.so.3.4
