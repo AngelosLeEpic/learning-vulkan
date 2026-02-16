@@ -134,6 +134,7 @@ class HelloTriangleApplication
 	std::vector<const char*> deviceExtensions = {
 		vk::KHRSwapchainExtensionName};
 	vk::raii::CommandPool commandPool = nullptr;
+	uint32_t graphicsIndex;
 
 	[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const {
 		printf("reading shader file\n");
@@ -208,8 +209,9 @@ class HelloTriangleApplication
 		createGraphicsPipeline();
 	    createCommandPool();
 	}
+
 	void createCommandPool(){
-		vk::CommandPoolCreateInfo poolInfo{ .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer, .queueFamilyIndex = queueindex };
+		vk::CommandPoolCreateInfo poolInfo{ .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer, .queueFamilyIndex = graphicsIndex };
 		
 		
 		commandPool = vk::raii::CommandPool(device, poolInfo);
@@ -315,7 +317,7 @@ class HelloTriangleApplication
 	    auto graphicsQueueFamilyProperty = std::ranges::find_if( queueFamilyProperties, []( auto const & qfp )
 	                    { return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0); } );
 
-	    auto graphicsIndex = static_cast<uint32_t>( std::distance( queueFamilyProperties.begin(), graphicsQueueFamilyProperty ) );
+	    graphicsIndex = static_cast<uint32_t>( std::distance( queueFamilyProperties.begin(), graphicsQueueFamilyProperty ) );
 
 	    // determine a queueFamilyIndex that supports present
 	    // first check if the graphicsIndex is good enough
@@ -388,6 +390,9 @@ class HelloTriangleApplication
 		// get available presentation forms
 		std::vector<vk::PresentModeKHR> availablePresentModes = physicalDevice.getSurfacePresentModesKHR( surface );
 	}
+	//void recordCommandBuffer(uint32_t imageIndex) {
+	//	
+	//}
 	void createSwapChain() {
 		auto surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR( *surface );
 		swapChainSurfaceFormat = chooseSwapSurfaceFormat(physicalDevice.getSurfaceFormatsKHR( *surface ));
@@ -549,6 +554,40 @@ class HelloTriangleApplication
 
 		instance = vk::raii::Instance(context, createInfo);
 		printf("extensions: %i\n", glfwExtensionCount);
+	}
+	void transition_image_layout(
+    uint32_t imageIndex,
+    vk::ImageLayout oldLayout,
+    vk::ImageLayout newLayout,
+    vk::AccessFlags2 srcAccessMask,
+    vk::AccessFlags2 dstAccessMask,
+    vk::PipelineStageFlags2 srcStageMask,
+    vk::PipelineStageFlags2 dstStageMask
+	) {
+		vk::ImageMemoryBarrier2 barrier = {
+			.srcStageMask = srcStageMask,
+			.srcAccessMask = srcAccessMask,
+			.dstStageMask = dstStageMask,
+			.dstAccessMask = dstAccessMask,
+			.oldLayout = oldLayout,
+			.newLayout = newLayout,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = swapChainImages[imageIndex],
+			.subresourceRange = {
+				.aspectMask = vk::ImageAspectFlagBits::eColor,
+				.baseMipLevel = 0,
+				.levelCount = 1,
+				.baseArrayLayer = 0,
+				.layerCount = 1
+			}
+		};
+		vk::DependencyInfo dependencyInfo = {
+			.dependencyFlags = {},
+			.imageMemoryBarrierCount = 1,
+			.pImageMemoryBarriers = &barrier
+		};
+		commandBuffer.pipelineBarrier2(dependencyInfo);
 	}
 	void mainLoop()
 	{
